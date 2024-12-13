@@ -111,6 +111,7 @@ endif
 
 ifneq (,$(filter loong64, $(DEB_HOST_ARCH)))
   EXTRA_HADRIAN_FLAGS += "*.*.ghc.c.opts += -optc-mcmodel=medium"
+  EXTRA_HADRIAN_FLAGS += "*.*.ghc.hs.opts += -optc-mcmodel=medium"
   EXTRA_HADRIAN_FLAGS += "*.*.cc.c.opts += -optc-mcmodel=medium"
 endif
 
