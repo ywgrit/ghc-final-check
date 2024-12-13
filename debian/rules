@@ -178,6 +178,7 @@ endif
 	hadrian/hadrian \
 		-V -j$(NUMJOBS) \
 		--docs=no-haddocks --docs=no-sphinx-html --docs=no-sphinx-pdfs \
+		-VV \
 		binary-dist-dir \
 		$(EXTRA_HADRIAN_FLAGS)
 ifeq (NO,$(BUILD_CROSS))
@@ -203,6 +204,7 @@ endif
 	hadrian/hadrian \
 		-V -j$(NUMJOBS) \
 		--docs=no-sphinx-pdfs \
+		-VV \
 		binary-dist-dir \
 		$(EXTRA_HADRIAN_FLAGS)
 	# I have noticed that on some rare cases the package cache
