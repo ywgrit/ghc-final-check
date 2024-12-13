@@ -1,0 +1,18 @@
+Description: Fix installation patch for iserv/unlit
+Author: Ilias Tsitsimpis <iliastsi@debian.org>
+Bug: https://gitlab.haskell.org/ghc/ghc/-/issues/22557
+Bug: https://gitlab.haskell.org/ghc/ghc/-/issues/22697
+
+Index: b/hadrian/src/Packages.hs
+===================================================================
+--- a/hadrian/src/Packages.hs
++++ b/hadrian/src/Packages.hs
+@@ -197,7 +197,7 @@ programPath context@Context {..} = do
+     -- See: https://github.com/snowleopard/hadrian/issues/570
+     -- Likewise for @iserv@ and @unlit@.
+     name <- programName context
+-    path <- if package `elem` [iserv, touchy, unlit]
++    path <- if package `elem` [touchy, unlit]
+               then stageLibPath stage <&> (-/- "bin")
+               else stageBinPath stage
+     return $ path -/- name <.> exe

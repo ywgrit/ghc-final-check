@@ -1,0 +1,79 @@
+From a6fc594224b6fe9754816869e93d9bd141a8fe2f Mon Sep 17 00:00:00 2001
+From: Sylvain Henry <sylvain@haskus.fr>
+Date: Thu, 1 Aug 2024 15:59:14 +0200
+Subject: [PATCH] Cmm: don't perform unsound optimizations on 32-bit compiler
+ hosts
+
+- beef61351b240967b49169d27a9a19565cf3c4af enabled the use of
+  MO_Add/MO_Sub for 64-bit operations in the C and LLVM backends
+- 6755d833af8c21bbad6585144b10e20ac4a0a1ab did the same for the x86 NCG
+  backend
+
+However we store some literal values as `Int` in the compiler. As a
+result, some Cmm optimizations transformed target 64-bit literals into
+compiler `Int`. If the compiler is 32-bit, this leads to computing with
+wrong literals (see #24893 and #24700).
+
+This patch disables these Cmm optimizations for 32-bit compilers. This
+is unsatisfying (optimizations shouldn't be compiler-word-size
+dependent) but it fixes the bug and it makes the patch easy to backport.
+A proper fix would be much more invasive but it shall be implemented in
+the future.
+
+Co-authored-by: amesgen <amesgen@amesgen.de>
+---
+ compiler/GHC/Cmm/Opt.hs                       | 19 ++++++++++++++++++-
+
+Index: b/compiler/GHC/Cmm/Opt.hs
+===================================================================
+--- a/compiler/GHC/Cmm/Opt.hs
++++ b/compiler/GHC/Cmm/Opt.hs
+@@ -213,23 +213,33 @@ cmmMachOpFoldM _ MO_Add{} [ CmmMachOp op
+   = Just $! CmmMachOp op [pic, CmmLit $ cmmOffsetLit lit off ]
+   where off = fromIntegral (narrowS rep n)
+ 
+--- Make a RegOff if we can
++-- Make a RegOff if we can. We don't perform this optimization if rep is greater
++-- than the host word size because we use an Int to store the offset. See
++-- #24893 and #24700. This should be fixed to ensure that optimizations don't
++-- depend on the compiler host platform.
+ cmmMachOpFoldM _ (MO_Add _) [CmmReg reg, CmmLit (CmmInt n rep)]
++  | validOffsetRep rep
+   = Just $! cmmRegOff reg (fromIntegral (narrowS rep n))
+ cmmMachOpFoldM _ (MO_Add _) [CmmRegOff reg off, CmmLit (CmmInt n rep)]
++  | validOffsetRep rep
+   = Just $! cmmRegOff reg (off + fromIntegral (narrowS rep n))
+ cmmMachOpFoldM _ (MO_Sub _) [CmmReg reg, CmmLit (CmmInt n rep)]
++  | validOffsetRep rep
+   = Just $! cmmRegOff reg (- fromIntegral (narrowS rep n))
+ cmmMachOpFoldM _ (MO_Sub _) [CmmRegOff reg off, CmmLit (CmmInt n rep)]
++  | validOffsetRep rep
+   = Just $! cmmRegOff reg (off - fromIntegral (narrowS rep n))
+ 
+ -- Fold label(+/-)offset into a CmmLit where possible
+ 
+ cmmMachOpFoldM _ (MO_Add _) [CmmLit lit, CmmLit (CmmInt i rep)]
++  | validOffsetRep rep
+   = Just $! CmmLit (cmmOffsetLit lit (fromIntegral (narrowU rep i)))
+ cmmMachOpFoldM _ (MO_Add _) [CmmLit (CmmInt i rep), CmmLit lit]
++  | validOffsetRep rep
+   = Just $! CmmLit (cmmOffsetLit lit (fromIntegral (narrowU rep i)))
+ cmmMachOpFoldM _ (MO_Sub _) [CmmLit lit, CmmLit (CmmInt i rep)]
++  | validOffsetRep rep
+   = Just $! CmmLit (cmmOffsetLit lit (fromIntegral (negate (narrowU rep i))))
+ 
+ 
+@@ -410,6 +420,13 @@ cmmMachOpFoldM platform mop [x, (CmmLit
+ 
+ cmmMachOpFoldM _ _ _ = Nothing
+ 
++-- | Check that a literal width is compatible with the host word size used to
++-- store offsets. This should be fixed properly (using larger types to store
++-- literal offsets). See #24893
++validOffsetRep :: Width -> Bool
++validOffsetRep rep = widthInBits rep <= finiteBitSize (undefined :: Int)
++
++
+ {- Note [Comparison operators]
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ If we have

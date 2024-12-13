@@ -1,0 +1,13 @@
+https://gitlab.haskell.org/ghc/ghc/-/merge_requests/11624
+Debian-Bug: https://bugs.debian.org/1056305
+
+Index: b/hadrian/src/Hadrian/Haskell/Cabal.hs
+===================================================================
+--- a/hadrian/src/Hadrian/Haskell/Cabal.hs
++++ b/hadrian/src/Hadrian/Haskell/Cabal.hs
+@@ -71,4 +71,5 @@ cabalOsString :: String -> String
+ cabalOsString "mingw32"  = "windows"
+ cabalOsString "darwin"   = "osx"
+ cabalOsString "solaris2" = "solaris"
++cabalOsString "gnu"      = "hurd"
+ cabalOsString other      = other

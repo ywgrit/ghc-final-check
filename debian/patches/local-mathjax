@@ -1,0 +1,13 @@
+Index: b/docs/users_guide/conf.py
+===================================================================
+--- a/docs/users_guide/conf.py
++++ b/docs/users_guide/conf.py
+@@ -75,7 +75,7 @@ html_use_opensearch = 'https://downloads
+ html_show_copyright = True
+ 
+ # See GHC #15006, #19423
+-mathjax_path = 'https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML '
++mathjax_path = 'file:///usr/share/javascript/mathjax/MathJax.js'
+ 
+ # If true, an OpenSearch description file will be output, and all pages will
+ # contain a <link> tag referring to it.  The value of this option must be the

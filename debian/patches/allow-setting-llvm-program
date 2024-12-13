@@ -1,0 +1,55 @@
+Description: Allow setting path for LLC/OPT during configuration
+ Patch configure.ac to allow us to modify the path for LLC/OPT during
+ configuration.
+Author: Ilias Tsitsimpis <iliastsi@debian.org>
+
+Index: b/configure.ac
+===================================================================
+--- a/configure.ac
++++ b/configure.ac
+@@ -574,14 +574,18 @@ AC_SUBST([ClangCmd])
+ dnl ** Which LLVM llc to use?
+ dnl --------------------------------------------------------------
+ AC_ARG_VAR(LLC,[Use as the path to LLVM's llc [default=autodetect]])
+-FIND_LLVM_PROG([LLC], [llc], [$LlvmMinVersion], [$LlvmMaxVersion])
++if test -z "$LLC"; then
++  FIND_LLVM_PROG([LLC], [llc], [$LlvmMinVersion], [$LlvmMaxVersion])
++fi
+ LlcCmd="$LLC"
+ AC_SUBST([LlcCmd])
+ 
+ dnl ** Which LLVM opt to use?
+ dnl --------------------------------------------------------------
+ AC_ARG_VAR(OPT,[Use as the path to LLVM's opt [default=autodetect]])
+-FIND_LLVM_PROG([OPT], [opt], [$LlvmMinVersion], [$LlvmMaxVersion])
++if test -z "$OPT"; then
++  FIND_LLVM_PROG([OPT], [opt], [$LlvmMinVersion], [$LlvmMaxVersion])
++fi
+ OptCmd="$OPT"
+ AC_SUBST([OptCmd])
+ 
+Index: b/distrib/configure.ac.in
+===================================================================
+--- a/distrib/configure.ac.in
++++ b/distrib/configure.ac.in
+@@ -152,14 +152,18 @@ LlvmMaxVersion=@LlvmMaxVersion@
+ dnl ** Which LLVM llc to use?
+ dnl --------------------------------------------------------------
+ AC_ARG_VAR(LLC,[Use as the path to LLVM's llc [default=autodetect]])
+-FIND_LLVM_PROG([LLC], [llc], [$LlvmMinVersion], [$LlvmMaxVersion])
++if test -z "$LLC"; then
++  FIND_LLVM_PROG([LLC], [llc], [$LlvmMinVersion], [$LlvmMaxVersion])
++fi
+ LlcCmd="$LLC"
+ AC_SUBST([LlcCmd])
+ 
+ dnl ** Which LLVM opt to use?
+ dnl --------------------------------------------------------------
+ AC_ARG_VAR(OPT,[Use as the path to LLVM's opt [default=autodetect]])
+-FIND_LLVM_PROG([OPT], [opt], [$LlvmMinVersion], [$LlvmMaxVersion])
++if test -z "$OPT"; then
++  FIND_LLVM_PROG([OPT], [opt], [$LlvmMinVersion], [$LlvmMaxVersion])
++fi
+ OptCmd="$OPT"
+ AC_SUBST([OptCmd])
+ 

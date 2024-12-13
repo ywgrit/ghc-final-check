@@ -1,0 +1,38 @@
+From 368444785432ac9f73b99ff15153ac33f95aed6d Mon Sep 17 00:00:00 2001
+From: Peter Trommler <ptrommler@acm.org>
+Date: Tue, 7 Nov 2023 21:47:24 +0100
+Subject: [PATCH] PPC NCG: Generate clear right insn at arch width
+
+The clear right immediate (clrrxi) is only available in word and
+doubleword width. Generate clrrxi instructions at architecture
+width for all MachOp widths.
+
+Fixes #24145
+---
+ compiler/GHC/CmmToAsm/PPC/CodeGen.hs | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+Index: b/compiler/GHC/CmmToAsm/PPC/CodeGen.hs
+===================================================================
+--- a/compiler/GHC/CmmToAsm/PPC/CodeGen.hs
++++ b/compiler/GHC/CmmToAsm/PPC/CodeGen.hs
+@@ -546,7 +546,7 @@ getRegister' config platform (CmmMachOp
+                                  CLRLI arch_fmt dst src1 (arch_bits - size)
+                  return (Any (intFormat to) code)
+ 
+-getRegister' _ _ (CmmMachOp mop [x, y]) -- dyadic PrimOps
++getRegister' _ platform (CmmMachOp mop [x, y]) -- dyadic PrimOps
+   = case mop of
+       MO_F_Eq _ -> condFltReg EQQ x y
+       MO_F_Ne _ -> condFltReg NE  x y
+@@ -626,8 +626,9 @@ getRegister' _ _ (CmmMachOp mop [x, y])
+                 (src, srcCode) <- getSomeReg x
+                 let clear_mask = if imm == -4 then 2 else 3
+                     fmt = intFormat rep
++                    arch_fmt = intFormat (wordWidth platform)
+                     code dst = srcCode
+-                               `appOL` unitOL (CLRRI fmt dst src clear_mask)
++                      `appOL` unitOL (CLRRI arch_fmt dst src clear_mask)
+                 return (Any fmt code)
+         _ -> trivialCode rep False AND x y
+       MO_Or rep    -> trivialCode rep False OR x y

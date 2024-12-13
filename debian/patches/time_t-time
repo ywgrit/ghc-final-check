@@ -1,0 +1,44 @@
+From d52314edb138b6ecd7e888c588f83917b0ee2c29 Mon Sep 17 00:00:00 2001
+From: Marios Titas <redneb@gmx.com>
+Date: Sun, 2 Oct 2022 23:12:43 +0300
+Subject: [PATCH] Use capi for syscalls that break under musl's handling of
+ 64-bit time_t
+
+---
+
+Index: b/libraries/time/lib/Data/Time/Clock/Internal/CTimespec.hsc
+===================================================================
+--- a/libraries/time/lib/Data/Time/Clock/Internal/CTimespec.hsc
++++ b/libraries/time/lib/Data/Time/Clock/Internal/CTimespec.hsc
+@@ -27,9 +27,9 @@ instance Storable CTimespec where
+         #{poke struct timespec, tv_sec } p s
+         #{poke struct timespec, tv_nsec} p ns
+ 
+-foreign import ccall unsafe "time.h clock_gettime"
++foreign import capi unsafe "time.h clock_gettime"
+     clock_gettime :: ClockID -> Ptr CTimespec -> IO CInt
+-foreign import ccall unsafe "time.h clock_getres"
++foreign import capi unsafe "time.h clock_getres"
+     clock_getres :: ClockID -> Ptr CTimespec -> IO CInt
+ 
+ -- | Get the resolution of the given clock.
+Index: b/libraries/time/lib/Data/Time/Clock/Internal/CTimeval.hs
+===================================================================
+--- a/libraries/time/lib/Data/Time/Clock/Internal/CTimeval.hs
++++ b/libraries/time/lib/Data/Time/Clock/Internal/CTimeval.hs
+@@ -1,5 +1,6 @@
+ {-# LANGUAGE CPP #-}
+ {-# LANGUAGE Safe #-}
++{-# LANGUAGE CApiFFI #-}
+ 
+ module Data.Time.Clock.Internal.CTimeval where
+ 
+@@ -23,7 +24,7 @@ instance Storable CTimeval where
+         pokeElemOff (castPtr p) 0 s
+         pokeElemOff (castPtr p) 1 mus
+ 
+-foreign import ccall unsafe "time.h gettimeofday" gettimeofday :: Ptr CTimeval -> Ptr () -> IO CInt
++foreign import capi unsafe "sys/time.h gettimeofday" gettimeofday :: Ptr CTimeval -> Ptr () -> IO CInt
+ 
+ -- | Get the current POSIX time from the system clock.
+ getCTimeval :: IO CTimeval

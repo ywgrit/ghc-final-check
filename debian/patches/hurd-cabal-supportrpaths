@@ -1,0 +1,29 @@
+https://github.com/haskell/cabal/pull/9441
+Debian-Bug: https://bugs.debian.org/1056305
+
+Index: b/libraries/Cabal/Cabal/src/Distribution/Simple/GHC.hs
+===================================================================
+--- a/libraries/Cabal/Cabal/src/Distribution/Simple/GHC.hs
++++ b/libraries/Cabal/Cabal/src/Distribution/Simple/GHC.hs
+@@ -1836,7 +1836,7 @@ getRPaths lbi clbi | supportRPaths hostO
+     supportRPaths Android     = False
+     supportRPaths Ghcjs       = False
+     supportRPaths Wasi        = False
+-    supportRPaths Hurd        = False
++    supportRPaths Hurd        = True
+     supportRPaths (OtherOS _) = False
+     -- Do _not_ add a default case so that we get a warning here when a new OS
+     -- is added.
+Index: b/libraries/Cabal/Cabal/src/Distribution/Simple/GHCJS.hs
+===================================================================
+--- a/libraries/Cabal/Cabal/src/Distribution/Simple/GHCJS.hs
++++ b/libraries/Cabal/Cabal/src/Distribution/Simple/GHCJS.hs
+@@ -1537,7 +1537,7 @@ getRPaths lbi clbi | supportRPaths hostO
+     supportRPaths Android     = False
+     supportRPaths Ghcjs       = False
+     supportRPaths Wasi        = False
+-    supportRPaths Hurd        = False
++    supportRPaths Hurd        = True
+     supportRPaths (OtherOS _) = False
+     -- Do _not_ add a default case so that we get a warning here when a new OS
+     -- is added.

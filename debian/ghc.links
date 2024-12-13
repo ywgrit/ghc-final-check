@@ -1,0 +1,7 @@
+# The package-db (for ghc-pkg) is '/usr/lib/ghc/lib/package.conf.d',
+# but all our Haskell library packages install their package configuration
+# files in '/var/lib/ghc/package.conf.d'.
+# Create a symlink, so that 'ghc-pkg' continues to work.
+# In the future, we should decide whether it makes sense to modify the
+# default package-db for ghc-pkg, or move everything under /usr/lib.
+/var/lib/ghc/package.conf.d /usr/lib/ghc/lib/package.conf.d

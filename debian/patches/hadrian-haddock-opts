@@ -1,0 +1,26 @@
+Description: Pass 'mathjax' to Haddock
+ Hadrian currently doesn't allow us to modify Haddock options, so
+ patch Hadrian to manually pass the 'mathjax' option.
+Author: Ilias Tsitsimpis <iliastsi@debian.org>
+Bug: https://gitlab.haskell.org/ghc/ghc/-/issues/23625
+
+Index: b/hadrian/src/Settings/Builders/Haddock.hs
+===================================================================
+--- a/hadrian/src/Settings/Builders/Haddock.hs
++++ b/hadrian/src/Settings/Builders/Haddock.hs
+@@ -30,6 +30,7 @@ haddockBuilderArgs = mconcat
+             , arg "-o", arg $ takeDirectory output
+             , arg "-t", arg "Haskell Hierarchical Libraries"
+             , arg "-p", arg "libraries/prologue.txt"
++            , arg "--mathjax=file:///usr/share/javascript/mathjax/MathJax.js"
+             , pure [ "--read-interface="
+                      ++ (takeFileName . takeDirectory) haddock
+                      ++ "," ++ haddock | haddock <- inputs ] ]
+@@ -58,6 +59,7 @@ haddockBuilderArgs = mconcat
+             , arg "--hyperlinked-source"
+             , arg "--hoogle"
+             , arg "--quickjump"
++            , arg "--mathjax=file:///usr/share/javascript/mathjax/MathJax.js"
+             , arg $ "--title=" ++ pkgName pkg ++ "-" ++ version
+                     ++ ": " ++ synopsis
+             , arg $ "--prologue=" ++ takeDirectory output -/- "haddock-prologue.txt"

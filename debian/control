@@ -1,0 +1,101 @@
+Source: ghc
+Section: haskell
+Priority: optional
+Maintainer: Debian Haskell Group <pkg-haskell-maintainers@lists.alioth.debian.org>
+Uploaders:
+ Clint Adams <clint@debian.org>,
+ Ilias Tsitsimpis <iliastsi@debian.org>
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Build-Depends:
+  debhelper-compat (= 12),
+  haskell-devscripts-minimal (>= 0.16.31) <!cross>,
+  gcc,
+  g++,
+  pkg-config,
+  ghc:native (>= 9.2),
+  hadrian:native (>= 9.6.6) <!pkg.ghc.nohadrian>,
+  hadrian:native (<< 9.6.7~) <!pkg.ghc.nohadrian>,
+  llvm-18 [armel armhf s390x riscv64 loong64],
+  libgmp-dev,
+  libffi-dev,
+  libncurses-dev,
+  libnuma-dev [linux-any],
+  python3:native,
+  python3-sphinx <!cross>,
+Build-Depends-Indep:
+  hscolour,
+  python3-sphinx-rtd-theme,
+Build-Conflicts: ccache
+Homepage: https://haskell.org/ghc/
+Vcs-Git: https://salsa.debian.org/haskell-team/DHG_packages.git [p/ghc]
+Vcs-Browser: https://salsa.debian.org/haskell-team/DHG_packages/tree/master/p/ghc
+
+Package: ghc
+Architecture: any
+Depends:
+  llvm-18 [armel armhf s390x riscv64 loong64],
+  gcc,
+  libgmp-dev,
+  libffi-dev,
+  libbsd-dev,
+  libc6-dev,
+  libncurses-dev,
+  libnuma-dev [linux-any],
+  ${shlibs:Depends},
+  ${misc:Depends}
+Recommends:
+  ${shlibs:Recommends},
+Pre-Depends: dpkg (>= 1.16.1)
+Provides:
+  haskell-compiler,
+  ghc-dynamic,
+  ${ghci},
+  ${provided-devs},
+  ${haskell:Provides},
+  haddock,
+  ghc-haddock,
+  ${haddock:Provides}
+Replaces: ${conflicting-devs}
+Breaks: ${conflicting-devs}
+Suggests: perl, ghc-prof, ghc-doc, llvm-18
+Description: The Glasgow Haskell Compilation system
+ The Glorious Glasgow Haskell Compilation system (GHC) is a compiler for
+ Haskell.
+ .
+ Haskell is "the" standard lazy functional programming language.  The language
+ definition and additional documentation can be found at
+ https://www.haskell.org/documentation/.
+
+Package: ghc-prof
+Architecture: any
+Provides: ${provided-profs}, ${haskell:Provides}
+Depends: ghc (= ${binary:Version}), ${misc:Depends}
+Description: Profiling libraries for the Glasgow Haskell Compilation system
+ The Glorious Glasgow Haskell Compilation system (GHC) is a compiler for
+ Haskell.
+ .
+ Haskell is "the" standard lazy functional programming language.  The language
+ definition and additional documentation can be found at
+ https://www.haskell.org/documentation/.
+ .
+ This package contains additional profiling libraries. They are only needed,
+ if you want to take a closer look on where exactly your program burns CPU
+ cycles.
+
+Package: ghc-doc
+Section: doc
+Architecture: all
+Provides: ${provided-docs}
+Depends: ${haddock:Depends}, ${misc:Depends}, perl, libjs-mathjax
+Pre-Depends: dpkg (>= 1.16.1)
+Description: Documentation for the Glasgow Haskell Compilation system
+ The Glorious Glasgow Haskell Compilation system (GHC) is a compiler for
+ Haskell.
+ .
+ Haskell is "the" standard lazy functional programming language.  The language
+ definition and additional documentation can be found at
+ https://www.haskell.org/documentation/.
+ .
+ This package includes HTML, DVI and PS versions of the SGML-based
+ documentation around GHC.

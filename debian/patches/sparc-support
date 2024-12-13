@@ -1,0 +1,30 @@
+Index: b/m4/ghc_convert_cpu.m4
+===================================================================
+--- a/m4/ghc_convert_cpu.m4
++++ b/m4/ghc_convert_cpu.m4
+@@ -74,6 +74,12 @@ case "$1" in
+   sh4)
+     $2="sh4"
+     ;;
++  sparc64*)
++    $2="sparc64"
++    ;;
++  sparc*)
++    $2="sparc"
++    ;;
+   vax)
+     $2="vax"
+     ;;
+Index: b/m4/fptools_set_haskell_platform_vars.m4
+===================================================================
+--- a/m4/fptools_set_haskell_platform_vars.m4
++++ b/m4/fptools_set_haskell_platform_vars.m4
+@@ -48,7 +48,7 @@ AC_DEFUN([FPTOOLS_SET_HASKELL_PLATFORM_V
+         loongarch64)
+             test -z "[$]2" || eval "[$]2=ArchLoongArch64"
+             ;;
+-        hppa|hppa1_1|ia64|m68k|nios2|riscv32|loongarch32|rs6000|s390|sh4|vax)
++        hppa|hppa1_1|ia64|m68k|nios2|riscv32|loongarch32|rs6000|s390|sh4|sparc|sparc64|vax)
+             test -z "[$]2" || eval "[$]2=ArchUnknown"
+             ;;
+         javascript)

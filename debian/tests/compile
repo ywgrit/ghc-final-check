@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+WORKDIR=$(mktemp -d)
+trap "rm -rf $WORKDIR" 0 INT QUIT ABRT PIPE TERM
+cd ${WORKDIR}
+
+cat >simple.hs <<EOF
+main :: IO ()
+main = putStrLn "Hello"
+EOF
+
+ghc -O -Wall -o simple simple.hs
+echo "compile: OK"
+test -x simple
+./simple
+echo "run: OK"

@@ -1,0 +1,434 @@
+#!/usr/bin/make -f
+# Sample debian/rules that uses debhelper.
+# This file is public domain software, originally written by Joey Hess.
+#
+# This version is for a multibinary package. It also allows you to build any
+# of the binary packages independantly, via binary-<package> targets.
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+# Set a dummy HOME variable upon build. Some build daemons do not set HOME, but
+# ghc-cabal expects it to be available.
+export HOME = /homedoesnotexistatbuildtime
+
+# From /usr/share/doc/autotools-dev/examples/rules.gz:
+export DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
+export DEB_BUILD_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+export DEB_HOST_ARCH      ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+export DEB_TARGET_ARCH_ENDIAN  ?= $(shell dpkg-architecture -qDEB_TARGET_ARCH_ENDIAN)
+
+# Bootstrap GHC
+export GHC := $(firstword $(shell bash -c "type -p ghc"))
+
+# The version of the GHC we are building
+ProjectVersion := $(shell cat VERSION)
+
+# Move this somewhere else?
+DEB_HOOGLE_TXT_DIR := /usr/lib/ghc-doc/hoogle/
+
+
+# --------------------------------------------------------------------
+# Build configuration
+# For configuration options, see
+# https://www.haskell.org/ghc/blog/20220805-make-to-hadrian.html
+# https://gitlab.haskell.org/ghc/ghc/-/blob/master/hadrian/doc/user-settings.md
+
+# Explicitly pass 'host', 'build' and 'target', because the configuration
+# script fails to properly detect them (e.g., it detects 'x86_64-unknown-linux'
+# instead of 'x86_64-linux-gnu'.
+EXTRA_CONFIGURE_FLAGS += --host $(DEB_BUILD_GNU_TYPE) --build $(DEB_BUILD_GNU_TYPE) --target $(DEB_HOST_GNU_TYPE)
+EXTRA_INSTALL_CONFIGURE_FLAGS += --host $(DEB_BUILD_GNU_TYPE) --build $(DEB_BUILD_GNU_TYPE) --target $(DEB_HOST_GNU_TYPE)
+
+# We're cross-building if DEB_BUILD_GNU_TYPE != DEB_HOST_GNU_TYPE
+ifneq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
+  # EXTRA_CONFIGURE_FLAGS += --enable-unregisterised
+  # EXTRA_HADRIAN_FLAGS += --integer-simple
+  EXTRA_HADRIAN_FLAGS += --flavour=quickest
+  # Do not build docs *at all* (avoid dependency on Sphinx)
+  EXTRA_HADRIAN_FLAGS += --docs=none
+  BUILD_CROSS = YES
+else
+  BUILD_CROSS = NO
+endif
+
+# Use system's default ld (ld.bfd) rather than ld.gold.
+# gold is abandoned and broken on many Debian platforms.
+# See also:
+#  https://bugs.debian.org/1079099
+#  https://gitlab.haskell.org/ghc/ghc/-/issues/22215
+#  https://gitlab.haskell.org/ghc/ghc/-/commit/c702696258f
+#  https://gitlab.haskell.org/ghc/ghc/-/issues/25093
+EXTRA_CONFIGURE_FLAGS += --disable-ld-override
+EXTRA_INSTALL_CONFIGURE_FLAGS += --disable-ld-override
+
+# BFD doesn't work on arm{el,hf}
+# See https://gitlab.haskell.org/ghc/ghc/-/blob/3a18c0fa2edcd61b0c3b470661791b09501c4c2b/m4/check_ld_copy_bug.m4
+# and https://sourceware.org/bugzilla/show_bug.cgi?id=16177
+ifneq (,$(filter armel armhf, $(DEB_HOST_ARCH)))
+  EXTRA_CONFIGURE_FLAGS += --enable-ld-override
+  EXTRA_INSTALL_CONFIGURE_FLAGS += --enable-ld-override
+endif
+
+# From GHC 8.10 and later, native code generator support for legacy x87
+# floating point coprocessor has been removed. GHC now only support floating
+# point via SSE2. This causes a baseline violation on Debian for i386 where
+# there is no SSE support. Fallback to unregisterised builds on i386.
+ifneq (,$(filter i386 powerpcspe x32, $(DEB_HOST_ARCH)))
+  EXTRA_CONFIGURE_FLAGS += --enable-unregisterised
+endif
+
+# See https://bugs.debian.org/1060196
+ifneq (,$(filter powerpc, $(DEB_HOST_ARCH)))
+  EXTRA_CONFIGURE_FLAGS += --enable-unregisterised
+  EXTRA_HADRIAN_FLAGS += "*.*.ghc.hs.opts += -optc--param -optcggc-min-expand=10 -optc-O3"
+endif
+
+
+ifneq (,$(filter armhf, $(DEB_HOST_ARCH)))
+  EXTRA_HADRIAN_FLAGS += "*.*.ghc.hs.opts += -D__ARM_PCS_VFP"
+endif
+
+ifneq (,$(filter i386 mips mipsel hppa, $(DEB_HOST_ARCH)))
+  EXTRA_HADRIAN_FLAGS += "*.*.ghc.hs.opts += -optc--param -optcggc-min-expand=10"
+endif
+
+# mips64el compiles fine without it. Keep this commented out in
+# case we need it in the future.
+# ifneq (,$(filter mips64el, $(DEB_HOST_ARCH)))
+# 	# Pass -mxgot to fix relocation linker errors
+# 	EXTRA_HADRIAN_FLAGS += "*.*.ghc.hs.opts += -optc-mxgot"
+# endif
+
+ifneq (,$(filter x32, $(DEB_HOST_ARCH)))
+  EXTRA_HADRIAN_FLAGS += --integer-simple
+endif
+
+ifneq (,$(filter noopt, $(DEB_BUILD_OPTIONS)))
+  EXTRA_HADRIAN_FLAGS += "*.*.ghc.*.opts += -H64m -O0"
+  EXTRA_HADRIAN_FLAGS += "*.*.rts.*.opts += -O0"
+endif
+
+ifneq (,$(filter loong64, $(DEB_HOST_ARCH)))
+  EXTRA_HADRIAN_FLAGS += "*.*.ghc.*.opts += -optc-mcmodel=medium"
+endif
+
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+  NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+# Use system libffi
+EXTRA_CONFIGURE_FLAGS += --with-system-libffi
+
+# Set LLVM version
+# If we don't set these, then the default value (llc / opt) will not work
+# on architectures where the default llc/opt version is different than
+# one of the supported versions.
+EXTRA_CONFIGURE_FLAGS += LLC=llc-18 OPT=opt-18
+EXTRA_INSTALL_CONFIGURE_FLAGS += LLC=llc-18 OPT=opt-18
+
+
+%:
+	dh $@
+
+# --------------------------------------------------------------------
+# Configure hadrian
+
+hadrian/hadrian:
+# Case A (default, with hadrian package available): the builder did not select
+# the "pkg.ghc.nohadrian" build profile. In this case, we use the distro's
+# hadrian.
+ifeq (,$(findstring pkg.ghc.nohadrian,$(DEB_BUILD_PROFILES)))
+	test -f "$$(which hadrian)"
+	ln -s "$$(which hadrian)" hadrian/hadrian
+# Case B (without hadrian): the builder selected the "pkg.ghc.nohadrian" build
+# profile. In this case, we use the ./hadrian/bootstrap/bootstrap.py script in
+# order to download the build-dependencies for hadrian, and build it ourselves
+# with our bootstrap ghc.
+else
+	cd hadrian && \
+		./bootstrap/bootstrap.py && \
+		test -f _build/bin/hadrian && \
+		ln -s _build/bin/hadrian hadrian
+endif
+
+.PHONY: clean-hadrian
+clean-hadrian:
+	rm -f hadrian/hadrian
+	rm -rf hadrian/_build
+
+# --------------------------------------------------------------------
+# Configure/Build rules
+
+override_dh_autoreconf:
+	dh_autoreconf ./boot.source
+
+override_dh_auto_configure:
+	dh_auto_configure -- $(EXTRA_CONFIGURE_FLAGS)
+
+override_dh_auto_build-arch: export LC_ALL=C.UTF-8
+override_dh_auto_build-arch: hadrian/hadrian
+ifeq (YES,$(BUILD_CROSS))
+	# See https://gitlab.haskell.org/ghc/ghc/-/issues/23975
+	# and https://gitlab.haskell.org/ghc/ghc/-/issues/22006
+	$(warning cross-compilation is not supported)
+endif
+	hadrian/hadrian \
+		-V -j$(NUMJOBS) \
+		--docs=no-haddocks --docs=no-sphinx-html --docs=no-sphinx-pdfs \
+		binary-dist-dir \
+		$(EXTRA_HADRIAN_FLAGS)
+ifeq (NO,$(BUILD_CROSS))
+	# I have noticed that on some rare cases the package cache
+	# generated for stage2 is stale. This is probably an upstream bug,
+	# and it wouldn't affect us (the package cache for binary-dist-dir is
+	# correct), but we use ghc-pkg from stage2 when we generate our control file.
+	# Maybe we should consider using ghc-pkg from binary-dist-dir instead.
+	# As a work-around for now, regenerate the stage2 package cache.
+	_build/stage1/bin/ghc-pkg recache
+endif
+
+# This rule is a superset of 'override_dh_auto_build-arch'. It builds everything
+# that the '-arch' rule builds, and then docs on top.
+# The reason we split those two rules, is to avoid building docs on arch
+# builders, because building docs requires running Haddock, which fails with
+# OOM errors on some weak builders.
+override_dh_auto_build-indep: export LC_ALL=C.UTF-8
+override_dh_auto_build-indep: hadrian/hadrian
+ifeq (YES,$(BUILD_CROSS))
+	$(error override_dh_auto_build-indep is not supported when cross compiling)
+endif
+	hadrian/hadrian \
+		-V -j$(NUMJOBS) \
+		--docs=no-sphinx-pdfs \
+		binary-dist-dir \
+		$(EXTRA_HADRIAN_FLAGS)
+	# I have noticed that on some rare cases the package cache
+	# generated for stage2 is stale. This is probably an upstream bug,
+	# and it wouldn't affect us (the package cache for binary-dist-dir is
+	# correct), but we use ghc-pkg from stage2 when we generate our control file.
+	# Maybe we should consider using ghc-pkg from binary-dist-dir instead.
+	# As a work-around for now, regenerate the stage2 package cache.
+	_build/stage1/bin/ghc-pkg recache
+
+
+# --------------------------------------------------------------------
+# Installation rules
+# Configure and install the binary distribution generated by
+# 'hadrian binary-dist-dir'
+
+BINDIST = _build/bindist/ghc-$(ProjectVersion)-$(DEB_HOST_GNU_TYPE)
+
+$(BINDIST)/config.mk:
+	cd $(BINDIST) && \
+		./configure \
+			--prefix=/usr \
+			--docdir=/usr/share/doc/ghc-doc \
+			$(EXTRA_INSTALL_CONFIGURE_FLAGS)
+	# We cannot modify 'ghclibdir' through configure, config.mk sets it
+	# to '$(libdir)/$(CrossCompilePrefix)ghc-$(ProjectVersion)'.
+	# Modify 'config.mk' and set 'ghclibdir' to '/usr/lib/ghc'.
+	echo 'ghclibdir := $$(libdir)/ghc' >> $@
+
+# The reason this is a PHONY target is because we need to re-run this in case
+# we first built and installed '-arch' packages, and now we want to build and
+# install '-indep' packages.
+.PHONY: debian/tmp
+debian/tmp: $(BINDIST)/config.mk
+	rm -rf debian/tmp
+	DESTDIR=$$(pwd)/debian/tmp/ make -C $(BINDIST) install
+
+	# Remove the conf.copy files, they really should not be in the installed
+	# package.
+	find debian/tmp -name \*.conf.copy -delete
+
+	# Move the package.conf files
+	# GHC installs package configuration files under '/usr/lib/ghc/lib/package.conf.d'
+	# but in Debian we move these files under 'var/lib/ghc/package.conf.d'.
+	# See also the debian/ghc.links file.
+	mkdir -p debian/tmp/var/lib/ghc
+	mv debian/tmp/usr/lib/ghc/lib/package.conf.d debian/tmp/var/lib/ghc/
+	rm -f debian/tmp/var/lib/ghc/package.conf.d/package.cache*
+	rm -f debian/tmp/var/lib/ghc/package.conf.d/.stamp
+
+	# Modify the ghc-doc path in package.conf files
+	sed -ri 's,share/doc/ghc-doc/html/libraries/(.*)\.haddock,lib/ghc-doc/haddock/ghc/\1.haddock,' debian/tmp/var/lib/ghc/package.conf.d/*.conf
+
+	# Replace ${pkgroot} in the package.conf files.
+	# The "pkgroot" is the directory containing the package database,
+	# which for us should be '/usr/lib/ghc/lib/'.
+	# The reason we change it here is because we are moving the package.conf
+	# files under '/var/lib/ghc/package.conf.d'.
+	sed -ri 's,\$$\{pkgroot\},/usr/lib/ghc/lib,' debian/tmp/var/lib/ghc/package.conf.d/*.conf
+
+	# manpages
+ifeq (NO,$(BUILD_CROSS))
+	echo ".so man1/ghc.1" > debian/tmp/usr/share/man/man1/ghc-$(ProjectVersion).1
+	if test -e debian/tmp/usr/bin/ghci-$(ProjectVersion); then \
+		echo ".so man1/ghc.1" > debian/tmp/usr/share/man/man1/ghci.1 ;\
+		echo ".so man1/ghc.1" > debian/tmp/usr/share/man/man1/ghci-$(ProjectVersion).1 ;\
+		cp debian/runghc.man debian/tmp/usr/share/man/man1/runghc.1 ; fi
+	cp utils/hp2ps/hp2ps.1 debian/tmp/usr/share/man/man1/hp2ps.1
+	cp debian/ghc-pkg.man debian/tmp/usr/share/man/man1/ghc-pkg.1
+	echo ".so man1/ghc-pkg.1" > debian/tmp/usr/share/man/man1/ghc-pkg-$(ProjectVersion).1
+	cp debian/haddock.man debian/tmp/usr/share/man/man1/haddock.1
+endif
+
+	# Delete all the library LICENSE files
+	rm -f debian/tmp/usr/share/doc/ghc-doc/html/libraries/*/LICENSE
+
+	# Move gen_contents_index binary
+	# We use our own binary because upstream expects to be run from
+	# a different directory.
+	mkdir -p debian/tmp/usr/lib/ghc-doc
+	rm -f debian/tmp/usr/share/doc/ghc-doc/html/libraries/gen_contents_index
+	cp debian/gen_contents_index debian/tmp/usr/lib/ghc-doc/
+	chmod +x debian/tmp/usr/lib/ghc-doc/gen_contents_index
+
+	# Delete 'doc-index.html' and 'index.html' files. These are generated at
+	# installation time using 'gen_contents_index'.
+	rm -f debian/tmp/usr/share/doc/ghc-doc/html/libraries/doc-index*.html \
+		debian/tmp/usr/share/doc/ghc-doc/html/libraries/index.html \
+		debian/tmp/usr/share/doc/ghc-doc/html/libraries/frames.html \
+		debian/tmp/usr/share/doc/ghc-doc/html/libraries/index-frames.html \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/haddock-util.js \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/hslogo-16.png \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/minus.gif \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/plus.gif \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/ocean.css \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/haddock-bundle.min.js \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/quick-jump.css \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/linuwial.css \
+	    debian/tmp/usr/share/doc/ghc-doc/html/libraries/synopsis.png
+
+	# Move haddock files to the correct folder
+	# (Create folders if they don't exist, i.e., if we are building '-arch')
+	mkdir -p debian/tmp/usr/lib/ghc-doc/haddock/ghc/
+	mkdir -p debian/tmp/usr/share/doc/ghc-doc/html/libraries/
+	for f in `find debian/tmp/usr/share/doc/ghc-doc/html/libraries/ -maxdepth 1 -mindepth 1 -type d`; do \
+		mkdir debian/tmp/usr/lib/ghc-doc/haddock/ghc/`basename $$f` ; \
+		mv $$f/*.haddock debian/tmp/usr/lib/ghc-doc/haddock/ghc/`basename $$f` ; done
+	cd debian/tmp/usr/share/doc/ghc-doc/html/libraries/; ln -s ghc-$(ProjectVersion) ghc
+
+	install -Dm 644 debian/index.html debian/tmp/usr/share/doc/ghc-doc/index.html
+
+	# Create Hoogle directory
+	mkdir -p debian/tmp/$(DEB_HOOGLE_TXT_DIR)
+
+	# Generate lintian overrides
+	mkdir -p debian/tmp/usr/share/lintian/overrides
+	echo "ghc binary: extra-license-file `cd debian/tmp && echo usr/lib/ghc/lib/*/Cabal-*/Distribution/License.hi`" >> debian/tmp/usr/share/lintian/overrides/ghc
+	echo "ghc binary: extra-license-file `cd debian/tmp && echo usr/lib/ghc/lib/*/Cabal-*/Distribution/SPDX/License.hi`" >> debian/tmp/usr/share/lintian/overrides/ghc
+	echo "ghc: extra-license-file `cd debian/tmp && echo usr/lib/ghc/lib/*/Cabal-*/Distribution/License.dyn_hi`" >> debian/tmp/usr/share/lintian/overrides/ghc
+	echo "ghc: extra-license-file `cd debian/tmp && echo usr/lib/ghc/lib/*/Cabal-*/Distribution/SPDX/License.dyn_hi`" >> debian/tmp/usr/share/lintian/overrides/ghc
+	echo "ghc-prof binary: extra-license-file `cd debian/tmp && echo usr/lib/ghc/lib/*/Cabal-*/Distribution/License.p_hi`" >> debian/tmp/usr/share/lintian/overrides/ghc-prof
+	echo "ghc-prof binary: extra-license-file `cd debian/tmp && echo usr/lib/ghc/lib/*/Cabal-*/Distribution/SPDX/License.p_hi`" >> debian/tmp/usr/share/lintian/overrides/ghc-prof
+
+FILES = \( -type f -o -type l \)
+PROF_FILE = \( -name "*.p_*" -o -name "lib*_p.a" \)
+
+override_dh_auto_install-arch: debian/tmp
+	# Manpages
+ifeq (NO,$(BUILD_CROSS))
+	find debian/tmp/usr/share/man $(FILES)           >> debian/ghc.install
+endif
+	# ghc
+	find debian/tmp/usr/bin $(FILES)                 >> debian/ghc.install
+#	find debian/tmp/usr/share/ghc* $(FILES)          >> debian/ghc.install
+	find debian/tmp/usr/lib/ghc $(FILES) ! $(PROF_FILE) >> debian/ghc.install
+	find debian/tmp/var				 >> debian/ghc.install
+	echo debian/tmp/usr/share/lintian/overrides/ghc >> debian/ghc.install
+	# ghc-prof
+	find debian/tmp/usr/lib/ghc $(FILES) $(PROF_FILE) > debian/ghc-prof.install
+	echo debian/tmp/usr/share/lintian/overrides/ghc-prof >> debian/ghc-prof.install
+	# Normalize paths
+	sed -i s,^debian/tmp,, debian/*.install debian/*.links
+
+override_dh_auto_install-indep: debian/tmp
+	# ghc-doc
+	find debian/tmp/usr/share/doc/ghc-doc/html/libraries/*/ -name "*.txt" \
+		-printf "%p $(DEB_HOOGLE_TXT_DIR)/%f\n" >> debian/ghc-doc.links
+	find debian/tmp/usr/share/doc/ghc-doc/html $(FILES) > debian/ghc-doc.install
+	find debian/tmp/usr/lib/ghc-doc $(FILES)      >> debian/ghc-doc.install
+	echo debian/tmp/usr/share/doc/ghc-doc/index.html >> debian/ghc-doc.install
+	# Normalize paths
+	sed -i s,^debian/tmp,, debian/*.install debian/*.links
+
+
+# --------------------------------------------------------------------
+# Cleanup and other rules
+
+override_dh_auto_clean: clean-hadrian
+	# Build artifacts
+	rm -rf _build/
+
+	# Temp files in debian/ dir
+	rm -rf debian/tmp
+	rm -f debian/*.install
+	rm -f debian/ghc-doc.links
+	rm -rf debian/testghc
+	rm -rf debian/tmp-db
+
+override_dh_auto_test:
+ifeq (NO,$(BUILD_CROSS))
+ifeq (,$(filter nocheck, $(DEB_BUILD_OPTIONS)))
+	# Do some very simple tests that the compiler actually works
+	rm -rf debian/testghc
+	mkdir debian/testghc
+	echo 'main = putStrLn "Foo"' > debian/testghc/foo.hs
+	_build/stage1/bin/ghc debian/testghc/foo.hs -o debian/testghc/foo
+	[ "$$(debian/testghc/foo)" = "Foo" ]
+	rm debian/testghc/*
+	echo 'main = putStrLn "Foo"' > debian/testghc/foo.hs
+	_build/stage1/bin/ghc debian/testghc/foo.hs -o debian/testghc/foo -O2
+	[ "$$(debian/testghc/foo)" = "Foo" ]
+	rm debian/testghc/*
+	# Test runghc
+	echo 'main = putStrLn "Foo"' > debian/testghc/foo.hs
+	[ "$$(_build/stage1/bin/runghc debian/testghc/foo.hs)" = "Foo" ]
+	rm debian/testghc/*
+	# Output information about GHC
+	@printf "====BEGIN GHC INFO OUTPUT====\n"
+	_build/stage1/bin/ghc --info
+	@printf "====END GHC INFO OUTPUT====\n"
+	@printf "====BEGIN GHC-PKG OUTPUT====\n"
+	_build/stage1/bin/ghc-pkg list
+	@printf "====END GHC-PKG OUTPUT====\n"
+endif
+endif
+
+override_dh_compress:
+	dh_compress -X.haddock -X.txt
+
+override_dh_gencontrol:
+ifeq (NO,$(BUILD_CROSS))
+	# Generate substvars
+	debian/provided_substvars
+	# Check if we have a ghci binary
+	if test -e debian/tmp/usr/bin/ghci-$(ProjectVersion); then \
+		echo 'ghci=ghc-ghci' >> debian/ghc.substvars ; fi
+	# Add haddock substvars
+	echo "haddock:Provides=haddock-interface-$$(debian/tmp/usr/lib/ghc/bin/haddock --interface-version)" >> debian/ghc.substvars
+	echo "haddock:Depends=haddock-interface-$$(debian/tmp/usr/lib/ghc/bin/haddock --interface-version)" >> debian/ghc-doc.substvars
+	# Add a dependency for the libstdc++-X-dev library the 'system-cxx-std-lib'
+	# package uses. Since we need libstdc++ only when using the
+	# 'system-cxx-std-lib' package, make this a recommends, rather than a depends.
+	echo "shlibs:Recommends=$$(\
+		_build/stage1/bin/ghc-pkg --simple-output field system-cxx-std-lib library-dirs | \
+		xargs realpath ${# resolve ../} | \
+		xargs -I{} dpkg-query -S '{}/libstdc++.so' ${# get package names} | \
+		sed 's/: .*//' ${# strip trailing ': filename'} | \
+		sort -u ${# unique packages})" >> debian/ghc.substvars
+	dh_haskell_provides
+endif
+	dh_gencontrol
+
+override_dh_shlibdeps:
+	dh_shlibdeps -XlibHS
+
+# we do not want shlibs files there, neither postrm scripts
+override_dh_makeshlibs:
+
+# GHC has no meaningful debugging symbols, so we don't ship a -dbgsym package.
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym

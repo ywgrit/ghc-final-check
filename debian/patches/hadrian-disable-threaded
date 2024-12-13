@@ -1,0 +1,28 @@
+Index: b/hadrian/hadrian.cabal
+===================================================================
+--- a/hadrian/hadrian.cabal
++++ b/hadrian/hadrian.cabal
+@@ -18,7 +18,7 @@ source-repository head
+ -- To accommodate #16873
+ flag threaded
+     manual:              True
+-    default:             True
++    default:             False
+     description:         Build with the threaded runtime for improved
+                          performance. Users with bootstrap compilers
+                          which don't support the threaded runtime should
+@@ -170,14 +170,6 @@ executable hadrian
+                        -rtsopts
+                        -fno-ignore-asserts
+ 
+-    if flag(threaded)
+-      ghc-options:
+-                       -- * -I0: Disable idle GC to avoid redundant GCs while
+-                       --        waiting for external processes
+-                       -- * -qg: Don't use parallel GC as the synchronization
+-                       --        time tends to eat any benefit.
+-                       "-with-rtsopts=-I0 -qg"
+-                       -threaded
+ 
+     if flag(selftest)
+       other-modules:   Rules.Selftest

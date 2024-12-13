@@ -1,0 +1,28 @@
+Description: Fix LLVM error on armel
+ GHC 8.10 fails to build on armel with the following error:
+
+   LLVM ERROR: unable to allocate function argument #8
+   PLEASE submit a bug report to https://bugs.llvm.org/ and include the crash backtrace.
+   Stack dump:
+   0.  Program arguments: llc-12 -O2 -enable-tbaa -relocation-model=pic -mcpu=arm7tdmi -mattr=+soft-float,-vfp2,-vfp2sp,-vfp3,-vfp3d16,-vfp3d16sp,-vfp3sp,-fp16,-vfp4,-vfp4d16,-vfp4d16sp,-vfp4sp,-fp-armv8,-fp-armv8d16,-fp-armv8d16sp,-fp-armv8sp,-fullfp16,-fp64,-d32,-neon,-crypto,-dotprod,-fp16fml,-bf16,-mve,-mve.fp,-fpregs,+strict-align /tmp/ghc5537_0/ghc_6.bc -o /tmp/ghc5537_0/ghc_7.lm_s
+   1.  Running pass 'Function Pass Manager' on module '/tmp/ghc20177_0/ghc_6.bc'.
+   2.  Running pass 'ARM Instruction Selection' on function '@"stg_gc_f1$def"'
+   `llc-12' failed in phase `LLVM Compiler'. (Exit code: -6)
+   make[3]: *** [rts/ghc.mk:325: rts/dist/build/HeapStackCheck.o] Error 1
+
+ Surprisingly, reverting commit 4540bbe2811e860f35de6e67ab2f0040592fd3a5 fixes
+ thie error.
+Author: Ilias Tsitsimpis <iliastsi@debian.org>
+Bug: https://gitlab.haskell.org/ghc/ghc/-/issues/20285
+Index: b/compiler/CodeGen.Platform.h
+===================================================================
+--- a/compiler/CodeGen.Platform.h
++++ b/compiler/CodeGen.Platform.h
+@@ -6,6 +6,7 @@ import GHC.Utils.Panic.Plain
+ #endif
+ import GHC.Platform.Reg
+ 
++#include "ghcautoconf.h"
+ #include "MachRegs.h"
+ 
+ #if defined(MACHREGS_i386) || defined(MACHREGS_x86_64)
