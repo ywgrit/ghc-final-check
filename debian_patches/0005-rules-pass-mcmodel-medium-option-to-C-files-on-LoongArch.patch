@@ -1,0 +1,17 @@
+From: Xin Wang <wangxin03@loongson.cn>
+Date: Mon, 13 Dec 2024 10:45:20 +0800
+Subject: [PATCH] rules: pass -mcmodel=medium option to C files on LoongArch
+diff --git a/debian/rules b/debian/rules
+index 6a18675..e0324a4 100755
+--- a/debian/rules
++++ b/debian/rules
+@@ -110,7 +110,8 @@ ifneq (,$(filter noopt, $(DEB_BUILD_OPTIONS)))
+ endif
+ 
+ ifneq (,$(filter loong64, $(DEB_HOST_ARCH)))
+-  EXTRA_HADRIAN_FLAGS += "*.*.ghc.*.opts += -optc-mcmodel=medium"
++  EXTRA_HADRIAN_FLAGS += "*.*.ghc.c.opts += -optc-mcmodel=medium"
++  EXTRA_HADRIAN_FLAGS += "*.*.cc.c.opts += -optc-mcmodel=medium"
+ endif
+ 
+ ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
