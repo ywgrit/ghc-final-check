@@ -190,7 +190,7 @@ cmmLlvmGen _ = return ()
 
 cmmMetaLlvmPrelude :: LlvmM ()
 cmmMetaLlvmPrelude = do
-  metas <- flip mapM stgTBAA $ \(uniq, name, parent) -> do
+  tbaa_metas <- flip mapM stgTBAA $ \(uniq, name, parent) -> do
     -- Generate / lookup meta data IDs
     tbaaId <- getMetaUniqueId
     setUniqMeta uniq tbaaId
@@ -203,8 +203,42 @@ cmmMetaLlvmPrelude = do
               -- just a name on its own. Previously `null` was accepted as the
               -- name.
               Nothing -> [ MetaStr name ]
+
+  platform <- getPlatform
+  cfg <- getConfig
+  let code_model_metas =
+          case platformArch platform of
+            -- FIXME: We should not rely on LLVM
+            ArchLoongArch64 -> [mkCodeModelMeta CMMedium]
+            _                                 -> []
+  module_flags_metas <- mkModuleFlagsMeta code_model_metas
+  let metas = tbaa_metas ++ module_flags_metas
   cfg <- getConfig
   renderLlvm $ ppLlvmMetas cfg metas
+
+mkNamedMeta :: LMString -> [MetaExpr] -> LlvmM [MetaDecl]
+mkNamedMeta name exprs = do
+    (ids, decls) <- unzip <$> mapM f exprs
+    return $ decls ++ [MetaNamed name ids]
+  where
+    f expr = do
+      i <- getMetaUniqueId
+      return (i, MetaUnnamed i expr)
+
+mkModuleFlagsMeta :: [ModuleFlag] -> LlvmM [MetaDecl]
+mkModuleFlagsMeta =
+    mkNamedMeta "llvm.module.flags" . map moduleFlagToMetaExpr
+
+-- LLVM's @LLVM::CodeModel::Model@ enumeration
+data CodeModel = CMMedium
+
+-- Pass -mcmodel=medium option to LLVM on LoongArch64
+mkCodeModelMeta :: CodeModel -> ModuleFlag
+mkCodeModelMeta codemodel =
+    ModuleFlag MFBError "Code Model" (MetaLit $ LMIntLit n i32)
+  where
+    n = case codemodel of CMMedium -> 3 -- as of LLVM 8
+
 
 -- -----------------------------------------------------------------------------
 -- | Marks variables as used where necessary

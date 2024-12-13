@@ -2,7 +2,6 @@
 
 module GHC.Llvm.MetaData
   ( MetaId(..)
-  , ppMetaId
   , MetaExpr(..)
   , MetaAnnot(..)
   , MetaDecl(..)
