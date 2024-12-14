@@ -1,0 +1,37 @@
+From 5880fff6d353a14785c457999fded5a7100c9514 Mon Sep 17 00:00:00 2001
+From: Wang Xin <wangxin03@loongson.cn>
+Date: Fri, 13 Dec 2024 03:47:29 +0000
+Subject: [PATCH] llvmGen: Allow LlvmLits in MetaExprs
+
+---
+ compiler/GHC/Llvm/MetaData.hs | 1 +
+ compiler/GHC/Llvm/Ppr.hs      | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/compiler/GHC/Llvm/MetaData.hs b/compiler/GHC/Llvm/MetaData.hs
+index 8f1ba411..5d0a996c 100644
+--- a/compiler/GHC/Llvm/MetaData.hs
++++ b/compiler/GHC/Llvm/MetaData.hs
+@@ -77,6 +77,7 @@ instance Outputable MetaId where
+ 
+ -- | LLVM metadata expressions
+ data MetaExpr = MetaStr !LMString
++              | MetaLit !LlvmLit
+               | MetaNode !MetaId
+               | MetaVar !LlvmVar
+               | MetaStruct [MetaExpr]
+diff --git a/compiler/GHC/Llvm/Ppr.hs b/compiler/GHC/Llvm/Ppr.hs
+index 787b6efc..bcb73b74 100644
+--- a/compiler/GHC/Llvm/Ppr.hs
++++ b/compiler/GHC/Llvm/Ppr.hs
+@@ -256,6 +256,7 @@ ppMetaExpr :: LlvmCgConfig -> MetaExpr -> SDoc
+ ppMetaExpr opts = \case
+   MetaVar (LMLitVar (LMNullLit _)) -> text "null"
+   MetaStr    s                     -> char '!' <> doubleQuotes (ftext s)
++  MetaLit    l                     -> ppTypeLit opts l
+   MetaNode   n                     -> ppr n
+   MetaVar    v                     -> ppVar opts v
+   MetaStruct es                    -> char '!' <> braces (ppCommaJoin (map (ppMetaExpr opts) es))
+-- 
+2.45.2
+

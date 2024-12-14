@@ -1,0 +1,86 @@
+From a6a3874276ced1b037365c059dcd0a758e813a5b Mon Sep 17 00:00:00 2001
+From: Ben Gamari <ben@smart-cactus.org>
+Date: Tue, 22 Aug 2023 13:26:46 -0400
+Subject: [PATCH] llvmGen: Introduce infrastructure for module flag metadata
+
+---
+ compiler/GHC/Llvm.hs          |  4 ++++
+ compiler/GHC/Llvm/MetaData.hs | 43 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/compiler/GHC/Llvm.hs b/compiler/GHC/Llvm.hs
+index 5226c59db5..c628ad673d 100644
+--- a/compiler/GHC/Llvm.hs
++++ b/compiler/GHC/Llvm.hs
+@@ -42,6 +42,10 @@ module GHC.Llvm (
+ 
+         -- ** Metadata types
+         MetaExpr(..), MetaAnnot(..), MetaDecl(..), MetaId(..),
++        -- *** Module flags
++        ModuleFlagBehavior(..),
++        ModuleFlag(..),
++        moduleFlagToMetaExpr,
+ 
+         -- ** Operations on the type system.
+         isGlobal, getLitType, getVarType,
+diff --git a/compiler/GHC/Llvm/MetaData.hs b/compiler/GHC/Llvm/MetaData.hs
+index bf8b2a3185..78454c3c0f 100644
+--- a/compiler/GHC/Llvm/MetaData.hs
++++ b/compiler/GHC/Llvm/MetaData.hs
+@@ -6,6 +6,10 @@ module GHC.Llvm.MetaData
+   , MetaExpr(..)
+   , MetaAnnot(..)
+   , MetaDecl(..)
++    -- * Module flags
++  , ModuleFlagBehavior(..)
++  , ModuleFlag(..)
++  , moduleFlagToMetaExpr
+   ) where
+ 
+ import GHC.Prelude
+@@ -98,3 +102,42 @@ data MetaDecl
+     -- | Metadata node declaration.
+     -- ('!0 = metadata !{ \<metadata expression> }' form).
+     | MetaUnnamed !MetaId !MetaExpr
++
++----------------------------------------------------------------
++-- Module flags
++----------------------------------------------------------------
++data ModuleFlagBehavior
++  = MFBError
++  | MFBWarning
++  | MFBRequire
++  | MFBOverride
++  | MFBAppend
++  | MFBAppendUnique
++  | MFBMax
++  | MFBMin
++
++moduleFlagBehaviorToMetaExpr :: ModuleFlagBehavior -> MetaExpr
++moduleFlagBehaviorToMetaExpr mfb =
++    MetaLit $ LMIntLit n i32
++  where
++    n = case mfb of
++      MFBError -> 1
++      MFBWarning -> 2
++      MFBRequire -> 3
++      MFBOverride -> 4
++      MFBAppend -> 5
++      MFBAppendUnique -> 6
++      MFBMax -> 7
++      MFBMin -> 8
++
++data ModuleFlag = ModuleFlag { mfBehavior :: ModuleFlagBehavior
++                             , mfName :: LMString
++                             , mfValue :: MetaExpr
++                             }
++
++moduleFlagToMetaExpr :: ModuleFlag -> MetaExpr
++moduleFlagToMetaExpr flag = MetaStruct
++    [ moduleFlagBehaviorToMetaExpr (mfBehavior flag)
++    , MetaStr (mfName flag)
++    , mfValue flag
++    ]
+-- 
+2.25.1
+
